@@ -1,0 +1,26 @@
+{
+  "backend": "local",
+
+  "database": {
+    "host": "localhost",
+    "port": 5433
+  },
+
+  "local_storage": {
+    "data_dir": "~/.memory_local"
+  },
+
+  "llm": {
+    "provider": "openai",
+    "base_url": "http://localhost:11434",
+    "llm_model": "llama3.2:3b",
+    "embed_provider": "openai",
+    "embed_model": "qwen3-embedding:0.6b",
+    "embed_dimensions": 1024
+  },
+
+  "graph": {
+    "enabled": false,
+    "url": "bolt://localhost:7688"
+  }
+}

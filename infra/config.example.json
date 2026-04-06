@@ -1,0 +1,28 @@
+{
+  "_comment": "Local Mem0 Configuration - Edit this file or use environment variables",
+
+  "database": {
+    "_why": "PostgreSQL stores memories + vectors. pgvector enables semantic search.",
+    "host": "localhost",
+    "port": 5433,
+    "user": "mem0",
+    "password": "${DB_PASSWORD}",
+    "database": "mem0"
+  },
+
+  "ollama": {
+    "_why": "LLM extracts facts, embedder creates vectors for similarity search.",
+    "base_url": "http://localhost:11434",
+    "llm_model": "llama3.2:3b",
+    "embed_model": "nomic-embed-text",
+    "embed_dimensions": 768
+  },
+
+  "graph": {
+    "_why": "Neo4j tracks entity relationships. Optional - set enabled:true if needed.",
+    "enabled": true,
+    "url": "bolt://localhost:7688",
+    "user": "neo4j",
+    "password": "${NEO4J_PASSWORD}"
+  }
+}

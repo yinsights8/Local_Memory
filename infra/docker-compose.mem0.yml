@@ -1,0 +1,121 @@
+# =============================================================================
+# Mem0 Local Memory Infrastructure
+# =============================================================================
+#
+# WHY THESE SERVICES?
+# -------------------
+# To run Mem0 locally (without cloud API), you need:
+#
+# 1. PostgreSQL + pgvector
+#    - Stores memories as text + vector embeddings
+#    - pgvector extension enables semantic similarity search
+#    - "Find memories similar to this query" = vector cosine similarity
+#
+# 2. Ollama (your existing instance)
+#    - LLM: Extracts facts from conversations
+#    - Embedder: Converts text to 768-dim vectors
+#
+# 3. Neo4j (Optional)
+#    - Graph database for entity relationships
+#    - Tracks connections: "John" → WORKS_AT → "Acme Corp"
+#
+# USAGE:
+#   cd src/memory_local
+#   docker compose -f docker-compose.mem0.yml up -d
+#
+# =============================================================================
+
+version: '3.8'
+
+services:
+  # ===========================================================================
+  # PostgreSQL + pgvector
+  # ===========================================================================
+  # WHY?
+  # - PostgreSQL: Reliable, widely-supported relational database
+  # - pgvector: Extension adding vector similarity search
+  #
+  # HOW IT STORES MEMORIES:
+  # ┌──────────────────────────────────────────────────────────────┐
+  # │ Table: memories                                              │
+  # ├────────┬─────────────────────────────┬───────────────────────┤
+  # │ id     │ memory (text)               │ embedding (vector)    │
+  # ├────────┼─────────────────────────────┼───────────────────────┤
+  # │ uuid-1 │ "User prefers morning calls"│ [0.12, -0.34, 0.56,..]│
+  # │ uuid-2 │ "Meeting with John tomorrow"│ [0.78, 0.11, -0.23,..]│
+  # └────────┴─────────────────────────────┴───────────────────────┘
+  #
+  # HOW SEARCH WORKS:
+  # 1. Query "when is my meeting?" → convert to vector
+  # 2. pgvector finds vectors with high cosine similarity
+  # 3. Returns matching memories ranked by relevance
+  # ===========================================================================
+  mem0-postgres:
+    image: ankane/pgvector:v0.5.1
+    container_name: mem0-postgres
+    env_file:
+      - ../.env
+    environment:
+      POSTGRES_USER: ${DATABASEUSER}
+      POSTGRES_PASSWORD: ${DATABASEPASSWORD}
+      POSTGRES_DB: ${DATABASE}
+    ports:
+      - "5433:5432"  # Using 5433 to avoid conflict with existing PostgreSQL
+    volumes:
+      # Option 1: Docker volume (default)
+      - mem0_postgres_data:/var/lib/postgresql/data
+      # Option 2: Local folder (uncomment to use)
+      # - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DATABASEUSER} -d ${DATABASE}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ===========================================================================
+  # Neo4j Graph Database (Optional)
+  # ===========================================================================
+  # WHY?
+  # - Stores entity relationships as a graph
+  # - Enables queries like: "Who do I know at company X?"
+  #
+  # GRAPH STRUCTURE:
+  #    ┌───────┐    WORKS_AT    ┌───────────┐
+  #    │ John  │ ──────────────►│ Acme Corp │
+  #    └───────┘                └───────────┘
+  #        │
+  #        │ MEETING_WITH
+  #        ▼
+  #    ┌───────┐
+  #    │ User  │
+  #    └───────┘
+  #
+  # TO DISABLE: Comment out this service and set graph.enabled=false in config
+  # ===========================================================================
+  mem0-neo4j:
+    image: neo4j:5.26.4
+    container_name: mem0-neo4j
+    env_file:
+      - ../.env
+    environment:
+      NEO4J_AUTH: ${GRAPHUSER}/${GRAPHPASSWORD}
+      NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_dbms_security_procedures_unrestricted: "apoc.*"
+    ports:
+      - "7475:7474"  # Browser UI: http://localhost:7475
+      - "7688:7687"  # Bolt protocol (connection)
+    volumes:
+      - mem0_neo4j_data:/data
+    healthcheck:
+      test: ["CMD", "neo4j", "status"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  mem0_postgres_data:
+    name: mem0_postgres_data
+  mem0_neo4j_data:
+    name: mem0_neo4j_data
